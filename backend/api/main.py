@@ -1,0 +1,293 @@
+"""FastAPI Application - Merchant Image Validator Agent"""
+from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
+import os
+from pathlib import Path
+from typing import List
+
+from backend.services.excel_processor import ExcelProcessor
+from backend.services.image_validator import ImageValidator
+from backend.services.result_generator import ResultGenerator
+from backend.config import UPLOAD_DIR
+
+app = FastAPI(title="Merchant Image Validator Agent", version="1.0.0")
+
+# Configure CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Serve static files
+os.makedirs("frontend/static", exist_ok=True)
+
+# Mount static files
+try:
+    app.mount("/static", StaticFiles(directory="frontend/static"), name="static")
+except:
+    pass  # Ignore if directory doesn't exist
+
+
+@app.get("/", response_class=HTMLResponse)
+async def root():
+    """Root endpoint - serve the dashboard"""
+    try:
+        with open("frontend/templates/index.html", "r", encoding="utf-8") as f:
+            return f.read()
+    except FileNotFoundError:
+        return HTMLResponse(content="<h1>Dashboard not found. Please check the frontend directory.</h1>", status_code=404)
+
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {"status": "healthy"}
+
+
+@app.post("/api/upload")
+async def upload_excel(file: UploadFile = File(...)):
+    """
+    Module 1: Upload and process Excel file
+    
+    Returns:
+        Excel processing results
+    """
+    try:
+        # Save uploaded file
+        file_path = Path(UPLOAD_DIR) / file.filename
+        with open(file_path, "wb") as f:
+            content = await file.read()
+            f.write(content)
+        
+        # Process Excel
+        processor = ExcelProcessor(str(file_path))
+        result = processor.process()
+        
+        return {
+            "success": True,
+            "message": "Excel file processed successfully",
+            "data": result
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/validate")
+async def validate_images(file: UploadFile = File(...)):
+    """
+    Complete validation pipeline:
+    - Module 1: Process Excel
+    - Module 2: Validate Images
+    - Module 3: Generate Results
+    
+    Returns:
+        Validation results
+    """
+    try:
+        # Save uploaded file
+        file_path = Path(UPLOAD_DIR) / file.filename
+        with open(file_path, "wb") as f:
+            content = await file.read()
+            f.write(content)
+        
+        # Module 1: Process Excel
+        print("Processing Excel file...")
+        processor = ExcelProcessor(str(file_path))
+        excel_result = processor.process()
+        
+        # Extract image URLs
+        image_data = excel_result['data']
+        image_urls = [item['image_url'] for item in image_data if item['is_valid_url']]
+        
+        # Module 2: Validate Images
+        print(f"Validating {len(image_urls)} images...")
+        validator = ImageValidator()
+        
+        validation_results = []
+        for i, item in enumerate(image_data):
+            if item['is_valid_url']:
+                print(f"Validating image {i+1}/{len(image_urls)}: {item['image_url']}")
+                result = validator.validate_image_url(item['image_url'])
+                validation_results.append(result)
+            else:
+                # Invalid URL
+                validation_results.append({
+                    'url': item['image_url'],
+                    'validated': False,
+                    'status': 'REJECTED',
+                    'reason': 'Invalid URL format',
+                    'confidence': 'HIGH'
+                })
+        
+        # Module 3: Generate Results
+        print("Generating results...")
+        result_generator = ResultGenerator()
+        
+        # Create Excel file with results
+        result_file_path = result_generator.create_result_excel(
+            image_data,
+            validation_results,
+            excel_result
+        )
+        
+        # Create dashboard data
+        dashboard_data = result_generator.create_dashboard_data(validation_results)
+        
+        # Prepare detailed results for preview
+        detailed_results = []
+        for i, (item, validation) in enumerate(zip(image_data, validation_results)):
+            # Get merchant ID and name from original data
+            orig_data = item.get('original_data', {})
+            
+            # Debug: Print available columns on first row
+            if i == 0:
+                print(f"Available columns in first row: {list(orig_data.keys())}")
+            
+            # Try to get merchant ID
+            merchant_id = (
+                orig_data.get('Merchant_ID') or 
+                orig_data.get('merchant_id') or 
+                orig_data.get('ID') or
+                orig_data.get('id') or
+                'N/A'
+            )
+            
+            # Try to get merchant name (for reference)
+            merchant_name = item.get('merchant_name', '')
+            if not merchant_name:
+                merchant_name = (
+                    orig_data.get('Merchant Name') or 
+                    orig_data.get('merchant_name') or 
+                    orig_data.get('Merchant') or 
+                    orig_data.get('merchant') or 
+                    orig_data.get('Offer Name') or
+                    orig_data.get('offer_name') or 
+                    orig_data.get('business') or 
+                    orig_data.get('company') or 
+                    orig_data.get('shop') or 
+                    orig_data.get('vendor') or
+                    'N/A'
+                )
+            
+            # Debug: Print what we found
+            if i == 0:
+                print(f"Merchant ID extracted: {merchant_id}")
+                print(f"Merchant name extracted: {merchant_name}")
+            
+            detailed_results.append({
+                'row': i + 1,
+                'merchant': merchant_id,  # Use ID instead of name
+                'merchant_name': merchant_name,  # Keep name as reference
+                'url': item.get('image_url', ''),
+                'status': validation.get('status', 'REVIEW_REQUIRED'),
+                'reason': validation.get('reason', 'No reason provided'),
+                'confidence_score': validation.get('confidence_score', 0.70)
+            })
+        
+        return {
+            "success": True,
+            "message": "Validation completed",
+            "result_file": result_file_path,
+            "dashboard_data": dashboard_data,
+            "detailed_results": detailed_results,
+            "summary": {
+                "total": len(validation_results),
+                "accepted": sum(1 for r in validation_results if r.get('status') == 'ACCEPTED'),
+                "rejected": sum(1 for r in validation_results if r.get('status') == 'REJECTED'),
+                "review_required": sum(1 for r in validation_results if r.get('status') == 'REVIEW_REQUIRED')
+            }
+        }
+    
+    except Exception as e:
+        print(f"Error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Validation failed: {str(e)}")
+
+
+@app.get("/api/download")
+async def download_result(filename: str):
+    """
+    Download result file
+    
+    Args:
+        filename: Name of the result file (can include path)
+    """
+    try:
+        from urllib.parse import unquote
+        
+        print(f"Download request received for: {filename}")
+        
+        # Decode the filename to handle URL encoding
+        decoded_filename = unquote(filename)
+        print(f"Decoded filename: {decoded_filename}")
+        
+        # Handle different path formats
+        if '/' in decoded_filename or '\\' in decoded_filename:
+            # If it contains path separators, extract just the filename
+            file_name = Path(decoded_filename).name
+            file_path = Path("results") / file_name
+        else:
+            # Otherwise, assume it's just the filename
+            file_path = Path("results") / decoded_filename
+        
+        print(f"Looking for file at: {file_path}")
+        print(f"File exists: {file_path.exists()}")
+        
+        if not file_path.exists():
+            print(f"File not found: {file_path}")
+            # List available files in results directory
+            if Path("results").exists():
+                available_files = list(Path("results").glob("*.xlsx"))
+                print(f"Available files in results directory: {[str(f) for f in available_files]}")
+            
+            # Try to find the most recent file
+            if available_files:
+                latest_file = max(available_files, key=lambda f: f.stat().st_mtime)
+                print(f"Using most recent file instead: {latest_file}")
+                file_path = latest_file
+        
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail=f"File not found: {file_path}")
+        
+        print(f"Serving file: {file_path}")
+        return FileResponse(
+            path=str(file_path),
+            filename=file_path.name,
+            media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Download error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/dashboard/{filename}")
+async def get_dashboard_data(filename: str):
+    """
+    Get dashboard data for a specific validation result
+    
+    Args:
+        filename: Name of the result file (optional)
+    """
+    try:
+        # This would typically load dashboard data from stored results
+        # For now, return example data
+        return {
+            "success": True,
+            "message": "Dashboard data loaded"
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

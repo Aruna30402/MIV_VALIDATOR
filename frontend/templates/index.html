@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Merchant Image Validator</title>
+<style>
+  :root {
+    --primary: #1E3A8A; /* navy */
+    --accent: #14B8A6; /* teal */
+    --bg: #F8FAFC;
+    --card-bg: #FFFFFF;
+    --text-dark: #0F172A;
+    --text-light: #64748B;
+    --radius: 12px;
+    --shadow: 0 4px 20px rgba(0,0,0,0.05);
+  }
+
+  * {
+    margin: 0; padding: 0; box-sizing: border-box;
+    font-family: 'Inter', 'Segoe UI', sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text-dark);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Navbar */
+  .navbar {
+    background: var(--primary);
+    color: white;
+    padding: 20px 40px;
+    font-size: 1.3rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+
+  .container {
+    max-width: 1100px;
+    margin: 40px auto;
+    background: var(--card-bg);
+    border-radius:20px;
+    box-shadow: var(--shadow);
+    padding: 40px;
+    border-color: #0F172A;
+  }
+
+  .header {
+    text-align: center;
+    margin-bottom: 30px;
+  }
+
+  .header h1 {
+    font-size: 2rem;
+    color: var(--primary);
+    margin-bottom: 8px;
+  }
+
+  .header p {
+    color: var(--text-light);
+    font-size: 1rem;
+  }
+
+  .upload-card {
+    border: 2px dashed var(--accent);
+    border-radius: var(--radius);
+    padding: 40px;
+    text-align: center;
+    transition: 0.3s;
+    margin-bottom: 30px;
+    background: #F0FDFA;
+  }
+
+  .upload-card:hover {
+    border-color: var(--primary);
+    background: #E0F2FE;
+  }
+
+  .upload-card h2 {
+    font-size: 1.3rem;
+    margin-bottom: 10px;
+  }
+
+  .file-input-wrapper {
+    margin-top: 25px;
+    position: relative;
+    display: inline-block;
+  }
+
+  .file-input {
+    position: absolute;
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+  }
+
+  .file-input-label {
+    background: var(--primary);
+    color: white;
+    padding: 12px 30px;
+    border-radius: 30px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.2s ease;
+  }
+
+  .file-input-label:hover {
+    background: var(--accent);
+  }
+
+  .selected-file {
+    margin-top: 15px;
+    color: var(--text-light);
+    font-weight: 500;
+  }
+
+  .btn {
+    background: var(--accent);
+    border: none;
+    color: white;
+    padding: 12px 35px;
+    border-radius: 30px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .btn:hover {
+    background: var(--primary);
+  }
+
+  .btn:disabled {
+    background: #94A3B8;
+    cursor: not-allowed;
+  }
+
+  .progress-section {
+    display: none;
+    margin-top: 30px;
+  }
+
+  .progress-bar {
+    height: 20px;
+    width: 100%;
+    background: #E2E8F0;
+    border-radius: 20px;
+    overflow: hidden;
+    margin-bottom: 10px;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary), var(--accent));
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 500;
+    transition: width 0.3s;
+  }
+
+  .results-section {
+    display: none;
+    margin-top: 30px;
+  }
+
+  .stats-grid {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .stat-card {
+    flex: 1;
+    min-width: 200px;
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 25px;
+    text-align: center;
+  }
+
+  .stat-card h3 {
+    font-size: 2rem;
+    color: var(--primary);
+    margin-bottom: 10px;
+  }
+
+  .stat-card p {
+    color: var(--text-light);
+    font-weight: 500;
+  }
+
+  .error-message {
+    display: none;
+    background: #FCA5A5;
+    color: #7F1D1D;
+    padding: 12px;
+    border-radius: var(--radius);
+    margin-top: 20px;
+    text-align: center;
+    font-weight: 500;
+  }
+
+  .download-btn {
+    text-align: center;
+    margin-top: 25px;
+  }
+
+  .preview-table-container {
+    margin-top: 30px;
+    max-height: 500px;
+    overflow: auto; /* Enable both horizontal and vertical scrolling */
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+  }
+
+  .preview-table {
+    width: 100%;
+    min-width: 1000px; /* Minimum width to ensure horizontal scroll on smaller screens */
+    border-collapse: collapse;
+    background: var(--card-bg);
+  }
+
+  .preview-table th {
+    background: var(--primary);
+    color: white;
+    padding: 12px;
+    text-align: left;
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  .preview-table td {
+    padding: 12px;
+    border-bottom: 1px solid #E2E8F0;
+  }
+
+  .preview-table tr:hover {
+    background: #F1F5F9;
+  }
+
+  .status-badge {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    display: inline-block;
+  }
+
+  .status-accepted {
+    background: #D1FAE5;
+    color: #065F46;
+  }
+
+  .status-rejected {
+    background: #FEE2E2;
+    color: #991B1B;
+  }
+
+  .status-review {
+    background: #FEF3C7;
+    color: #92400E;
+  }
+
+  @media (max-width: 768px) {
+    .container {
+      padding: 25px;
+    }
+  }
+</style>
+</head>
+<body>
+
+  <div class="navbar"><center>Merchant Image Validator</center></div>
+
+  <div class="container">
+    <div class="header">
+      <h1>AI-Powered Compliance Validator</h1>
+      <p>Validate merchant images for compliance automatically using AI</p>
+    </div>
+
+    <div class="upload-card">
+      <h2>Upload Excel File</h2>
+      <p>Select an Excel file containing merchant names and image URLs</p>
+      <div class="file-input-wrapper">
+        <input type="file" id="excelFile" class="file-input" accept=".xlsx,.xls">
+        <label for="excelFile" class="file-input-label">Choose File</label>
+      </div>
+      <div id="selectedFile" class="selected-file"></div>
+      <div style="margin-top: 25px;">
+        <button id="validateBtn" class="btn" disabled>Start Validation</button>
+      </div>
+    </div>
+
+    <div id="progressSection" class="progress-section">
+      <h3>Processing...</h3>
+      <div class="progress-bar">
+        <div id="progressFill" class="progress-fill" style="width:0%">0%</div>
+      </div>
+      <p id="progressText" style="text-align:center;color:var(--text-light);">Initializing...</p>
+    </div>
+
+    <div id="errorMessage" class="error-message"></div>
+
+    <div id="resultsSection" class="results-section">
+      <h2 style="text-align:center;margin-bottom:20px;">Validation Summary</h2>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <h3 id="totalCount">0</h3><p>Total Images</p>
+        </div>
+        <div class="stat-card">
+          <h3 id="acceptedCount">0</h3><p>Accepted</p>
+        </div>
+        <div class="stat-card">
+          <h3 id="rejectedCount">0</h3><p>Rejected</p>
+        </div>
+        <div class="stat-card">
+          <h3 id="reviewCount">0</h3><p>Review Required</p>
+        </div>
+      </div>
+      
+      <h3 style="text-align:center;margin:30px 0 20px;color:var(--primary);">Preview Results</h3>
+      <div class="preview-table-container">
+        <table class="preview-table" id="previewTable">
+          <thead>
+            <tr>
+              <th>Row</th>
+              <th>Merchant ID</th>
+              <th>Image Link</th>
+              <th>Status</th>
+              <th>Reason</th>
+            </tr>
+          </thead>
+          <tbody id="previewTableBody">
+            <!-- Preview data will be inserted here -->
+          </tbody>
+        </table>
+      </div>
+      
+      <div class="download-btn">
+        <button id="downloadBtn" class="btn">Download Results</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const fileInput = document.getElementById('excelFile');
+  const selectedFileDiv = document.getElementById('selectedFile');
+  const validateBtn = document.getElementById('validateBtn');
+  const progressSection = document.getElementById('progressSection');
+  const resultsSection = document.getElementById('resultsSection');
+  const errorMessage = document.getElementById('errorMessage');
+  const progressFill = document.getElementById('progressFill');
+  const progressText = document.getElementById('progressText');
+  
+  let resultFileName = '', resultFilePath = '';
+
+  fileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      selectedFileDiv.textContent = `Selected: ${file.name}`;
+      validateBtn.disabled = false;
+    } else {
+      selectedFileDiv.textContent = '';
+      validateBtn.disabled = true;
+    }
+  });
+
+  validateBtn.addEventListener('click', async () => {
+    const file = fileInput.files[0];
+    if (!file) {
+      showError('Please select a file first');
+      return;
+    }
+    errorMessage.style.display = 'none';
+    resultsSection.style.display = 'none';
+    progressSection.style.display = 'block';
+    validateBtn.disabled = true;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      progressText.textContent = 'Uploading file...';
+      updateProgress(10);
+      const response = await fetch('http://localhost:8000/api/validate', {
+        method: 'POST', body: formData
+      });
+
+      updateProgress(50);
+      progressText.textContent = 'Processing images...';
+      const result = await response.json();
+
+      if (!response.ok) throw new Error(result.detail || 'Validation failed');
+
+      updateProgress(100);
+      progressText.textContent = 'Completed!';
+
+      resultFilePath = result.result_file;
+      resultFileName = result.result_file.split('/').pop();
+      showResults(result);
+
+      setTimeout(() => {
+        progressSection.style.display = 'none';
+        resultsSection.style.display = 'block';
+      }, 1000);
+
+    } catch (error) {
+      showError(error.message);
+      progressSection.style.display = 'none';
+      validateBtn.disabled = false;
+    }
+  });
+
+  document.getElementById('downloadBtn').addEventListener('click', () => {
+    if (resultFileName || resultFilePath) {
+      const encodedPath = encodeURIComponent(resultFilePath || resultFileName);
+      window.open(`http://localhost:8000/api/download?filename=${encodedPath}`, '_blank');
+    }
+  });
+
+  function updateProgress(percent) {
+    progressFill.style.width = percent + '%';
+    progressFill.textContent = percent + '%';
+  }
+
+  function showResults(result) {
+    document.getElementById('totalCount').textContent = result.summary.total;
+    document.getElementById('acceptedCount').textContent = result.summary.accepted;
+    document.getElementById('rejectedCount').textContent = result.summary.rejected;
+    document.getElementById('reviewCount').textContent = result.summary.review_required;
+    
+    // Populate preview table
+    const tbody = document.getElementById('previewTableBody');
+    tbody.innerHTML = '';
+    
+    if (result.detailed_results && result.detailed_results.length > 0) {
+      result.detailed_results.forEach(row => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${row.row}</td>
+          <td>${row.merchant || 'N/A'}</td>
+          <td><a href="${row.url}" target="_blank" style="color: var(--accent); text-decoration: none; word-break: break-all;">${row.url}</a></td>
+          <td><span class="status-badge status-${row.status.toLowerCase()}">${row.status}</span></td>
+          <td>${row.reason.substring(0, 60)}${row.reason.length > 60 ? '...' : ''}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+  }
+
+  function showError(message) {
+    errorMessage.textContent = message;
+    errorMessage.style.display = 'block';
+  }
+</script>
+</body>
+</html>
