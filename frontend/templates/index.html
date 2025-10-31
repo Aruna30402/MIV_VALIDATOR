@@ -140,6 +140,23 @@
     cursor: not-allowed;
   }
 
+  /* Compliance action buttons */
+  #validateBtn,
+  #generalComplianceBtn {
+    background: #10B981; /* green */
+  }
+  #validateBtn:hover:not(:disabled),
+  #generalComplianceBtn:hover:not(:disabled) {
+    background: #059669;
+  }
+  #imageQualityBtn {
+    background: #94A3B8; /* grey */
+    color: #ffffff;
+  }
+  #imageQualityBtn:hover {
+    background: #64748B;
+  }
+
   .progress-section {
     display: none;
     margin-top: 30px;
@@ -249,6 +266,71 @@
     background: #F1F5F9;
   }
 
+  /* Single Image Preview Card */
+  .single-image-card {
+    display: flex;
+    gap: 30px;
+    align-items: flex-start;
+    padding: 30px;
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    margin-bottom: 20px;
+  }
+
+  .single-image-preview {
+    flex: 0 0 300px;
+  }
+
+  .single-image-preview img {
+    width: 100%;
+    height: auto;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: transform 0.3s;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  }
+
+  .single-image-preview img:hover {
+    transform: scale(1.02);
+  }
+
+  .single-image-details {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .single-image-status {
+    display: inline-block;
+    padding: 12px 24px;
+    border-radius: var(--radius);
+    font-weight: 600;
+    font-size: 1.1rem;
+    text-align: center;
+    width: fit-content;
+  }
+
+  .single-image-reason {
+    padding: 15px;
+    background: #F8FAFC;
+    border-radius: var(--radius);
+    border-left: 4px solid var(--accent);
+    line-height: 1.6;
+  }
+
+  .single-image-reason h4 {
+    margin-bottom: 10px;
+    color: var(--primary);
+    font-size: 1.1rem;
+  }
+
+  .single-image-reason p {
+    color: var(--text-dark);
+    font-size: 1rem;
+  }
+
   .status-badge {
     padding: 4px 12px;
     border-radius: 20px;
@@ -285,20 +367,26 @@
 
   <div class="container">
     <div class="header">
-      <h1>AI-Powered Compliance Checker</h1>
+  
+
+  <div class="container">
+    <div class="header">
+      <h1>Image Compliance Checker</h1>
       <p>Validate images for compliance automatically using AI</p>
     </div>
 
     <div class="upload-card">
-      <h2>Upload Excel File</h2>
-      <p>Select an Excel file containing merchant names and image URLs</p>
+      <h2>Upload File</h2>
+      <p>Select an Excel file (with merchant names and image URLs) OR a single image file (PNG, JPG, etc.)</p>
       <div class="file-input-wrapper">
-        <input type="file" id="excelFile" class="file-input" accept=".xlsx,.xls">
-        <label for="excelFile" class="file-input-label">Choose File</label>
+        <input type="file" id="excelFile" class="file-input" accept=".xlsx,.xls,.png,.jpg,.jpeg,.webp,.gif,.bmp">
+        <label for="excelFile" class="file-input-label">Choose File (Excel or Image)</label>
       </div>
       <div id="selectedFile" class="selected-file"></div>
-      <div style="margin-top: 25px;">
-        <button id="validateBtn" class="btn" disabled>Start Validation</button>
+      <div style="margin-top: 25px; display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
+        <button id="validateBtn" class="btn" disabled>Sharia Compliance</button>
+        <button id="generalComplianceBtn" class="btn" type="button">General Compliance</button>
+        <button id="imageQualityBtn" class="btn" type="button">Image Quality</button>
       </div>
     </div>
 
@@ -330,21 +418,26 @@
       </div>
       
       <h3 style="text-align:center;margin:30px 0 20px;color:var(--primary);">Preview Results</h3>
-      <div class="preview-table-container">
-        <table class="preview-table" id="previewTable">
-          <thead>
-            <tr>
-              <th>Row</th>
-              <th>Merchant ID</th>
-              <th>Image Link</th>
-              <th>Status</th>
-              <th>Reason</th>
-            </tr>
-          </thead>
-          <tbody id="previewTableBody">
-            <!-- Preview data will be inserted here -->
-          </tbody>
-        </table>
+      <div id="previewTableContainer">
+        <div class="preview-table-container">
+          <table class="preview-table" id="previewTable">
+            <thead>
+              <tr>
+                <th>Row</th>
+                <th>Merchant ID</th>
+                <th>Image / Preview</th>
+                <th>Status</th>
+                <th>Reason</th>
+              </tr>
+            </thead>
+            <tbody id="previewTableBody">
+              <!-- Preview data will be inserted here -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div id="singleImagePreview" style="display: none;">
+        <!-- Single image preview will be inserted here -->
       </div>
       
       <div class="download-btn">
@@ -357,6 +450,8 @@
   const fileInput = document.getElementById('excelFile');
   const selectedFileDiv = document.getElementById('selectedFile');
   const validateBtn = document.getElementById('validateBtn');
+  const generalComplianceBtn = document.getElementById('generalComplianceBtn');
+  const imageQualityBtn = document.getElementById('imageQualityBtn');
   const progressSection = document.getElementById('progressSection');
   const resultsSection = document.getElementById('resultsSection');
   const errorMessage = document.getElementById('errorMessage');
@@ -364,6 +459,7 @@
   const progressText = document.getElementById('progressText');
   
   let resultFileName = '', resultFilePath = '';
+  let complianceMode = 'sharia'; // Track current compliance mode
 
   fileInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
@@ -376,7 +472,42 @@
     }
   });
 
-  validateBtn.addEventListener('click', async () => {
+  // Compliance mode button handlers
+  validateBtn.addEventListener('click', (e) => {
+    // Set sharia mode and run validation
+    complianceMode = 'sharia';
+    updateComplianceButtons();
+    startValidation();
+  });
+
+  generalComplianceBtn.addEventListener('click', (e) => {
+    // Set general mode and run validation
+    complianceMode = 'general';
+    updateComplianceButtons();
+    startValidation();
+  });
+
+  imageQualityBtn.addEventListener('click', () => {
+    // TODO: Implement image quality checking
+    alert('Image Quality feature coming soon!');
+  });
+
+  function updateComplianceButtons() {
+    if (complianceMode === 'sharia') {
+      validateBtn.style.background = '#10B981';
+      validateBtn.style.color = 'white';
+      generalComplianceBtn.style.background = '#94A3B8';
+      generalComplianceBtn.style.color = 'white';
+    } else {
+      validateBtn.style.background = '#94A3B8';
+      validateBtn.style.color = 'white';
+      generalComplianceBtn.style.background = '#10B981';
+      generalComplianceBtn.style.color = 'white';
+    }
+  }
+
+  // Change the validateBtn click handler to a new function name
+  async function startValidation() {
     const file = fileInput.files[0];
     if (!file) {
       showError('Please select a file first');
@@ -389,11 +520,12 @@
 
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('compliance_mode', complianceMode);
 
     try {
       progressText.textContent = 'Uploading file...';
       updateProgress(10);
-      const response = await fetch('http://localhost:8000/api/validate', {
+      const response = await fetch('/api/validate', {
         method: 'POST', body: formData
       });
 
@@ -420,12 +552,12 @@
       progressSection.style.display = 'none';
       validateBtn.disabled = false;
     }
-  });
+  }
 
   document.getElementById('downloadBtn').addEventListener('click', () => {
     if (resultFileName || resultFilePath) {
       const encodedPath = encodeURIComponent(resultFilePath || resultFileName);
-      window.open(`http://localhost:8000/api/download?filename=${encodedPath}`, '_blank');
+      window.open(`/api/download?filename=${encodedPath}`, '_blank');
     }
   });
 
@@ -439,23 +571,91 @@
     document.getElementById('acceptedCount').textContent = result.summary.accepted;
     document.getElementById('rejectedCount').textContent = result.summary.rejected;
     document.getElementById('reviewCount').textContent = result.summary.review_required;
-    
-    // Populate preview table
-    const tbody = document.getElementById('previewTableBody');
-    tbody.innerHTML = '';
-    
+
     if (result.detailed_results && result.detailed_results.length > 0) {
-      result.detailed_results.forEach(row => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${row.row}</td>
-          <td>${row.merchant || 'N/A'}</td>
-          <td><a href="${row.url}" target="_blank" style="color: var(--accent); text-decoration: none; word-break: break-all;">${row.url}</a></td>
-          <td><span class="status-badge status-${row.status.toLowerCase()}">${row.status}</span></td>
-          <td>${row.reason.substring(0, 60)}${row.reason.length > 60 ? '...' : ''}</td>
+      // Detect if it's a single image upload (all entries are base64 images)
+      const isSingleImageUpload = result.detailed_results.length === 1 && 
+                                   result.detailed_results[0].url && 
+                                   result.detailed_results[0].url.startsWith('data:image/');
+      
+      const tableContainer = document.getElementById('previewTableContainer');
+      const singleImageContainer = document.getElementById('singleImagePreview');
+      
+      if (isSingleImageUpload) {
+        // Hide table, show card layout for single image
+        tableContainer.style.display = 'none';
+        singleImageContainer.style.display = 'block';
+        
+        const row = result.detailed_results[0];
+        const statusColor = row.status === 'ACCEPTED' ? '#D1FAE5' : 
+                           row.status === 'REJECTED' ? '#FEE2E2' : '#FEF3C7';
+        const textColor = row.status === 'ACCEPTED' ? '#065F46' : 
+                         row.status === 'REJECTED' ? '#991B1B' : '#92400E';
+        
+        singleImageContainer.innerHTML = `
+          <div class="single-image-card">
+            <div class="single-image-preview">
+              <a href="${row.url}" target="_blank">
+                <img src="${row.url}" alt="Preview">
+              </a>
+            </div>
+            <div class="single-image-details">
+              <div class="single-image-status" style="background: ${statusColor}; color: ${textColor};">
+                ${row.status}
+              </div>
+              <div class="single-image-reason">
+                <h4>Reason</h4>
+                <p>${row.reason}</p>
+              </div>
+            </div>
+          </div>
         `;
-        tbody.appendChild(tr);
-      });
+      } else {
+        // Show table, hide card layout for Excel uploads
+        tableContainer.style.display = 'block';
+        singleImageContainer.style.display = 'none';
+        
+        const tbody = document.getElementById('previewTableBody');
+        tbody.innerHTML = '';
+        
+        // Set table headers for Excel upload
+        const thead = document.querySelector('#previewTable thead');
+        thead.innerHTML = `
+          <tr>
+            <th>Row</th>
+            <th>Merchant ID</th>
+            <th>Image / Preview</th>
+            <th>Status</th>
+            <th>Reason</th>
+          </tr>
+        `;
+        
+        result.detailed_results.forEach(row => {
+          const tr = document.createElement('tr');
+          
+          // Check if it's a base64 image
+          const isBase64Image = row.url && row.url.startsWith('data:image/');
+          
+          // Create image preview or link
+          let imageCell;
+          if (isBase64Image) {
+            imageCell = `<a href="${row.url}" target="_blank" style="display: inline-block;"><img src="${row.url}" alt="Preview" style="max-width: 100px; max-height: 100px; border-radius: 4px; cursor: pointer;"></a>`;
+          } else {
+            imageCell = `<a href="${row.url}" target="_blank" style="color: var(--accent); text-decoration: none; word-break: break-all;">${row.url}</a>`;
+          }
+          
+          const statusBadge = `<span class="status-badge status-${row.status.toLowerCase()}">${row.status}</span>`;
+          
+          tr.innerHTML = `
+            <td>${row.row}</td>
+            <td>${row.merchant || 'N/A'}</td>
+            <td>${imageCell}</td>
+            <td>${statusBadge}</td>
+            <td>${row.reason}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
     }
   }
 

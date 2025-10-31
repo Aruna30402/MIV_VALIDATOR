@@ -1,9 +1,10 @@
 """FastAPI Application - Merchant Image Validator Agent"""
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Form
 from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import os
+import base64
 from pathlib import Path
 from typing import List
 
@@ -79,39 +80,89 @@ async def upload_excel(file: UploadFile = File(...)):
 
 
 @app.post("/api/validate")
-async def validate_images(file: UploadFile = File(...)):
+async def validate_images(file: UploadFile = File(...), compliance_mode: str = Form("sharia")):
     """
     Complete validation pipeline:
     - Module 1: Process Excel
     - Module 2: Validate Images
     - Module 3: Generate Results
     
+    Args:
+        file: Uploaded file (Excel or image)
+        compliance_mode: "sharia" or "general" compliance checking
+    
     Returns:
         Validation results
     """
     try:
-        # Save uploaded file
-        file_path = Path(UPLOAD_DIR) / file.filename
-        with open(file_path, "wb") as f:
+        # Detect file type
+        content_type = file.content_type or ""
+        is_image = content_type.startswith("image/")
+        is_excel = "excel" in content_type or "spreadsheet" in content_type or \
+                   file.filename.endswith(('.xlsx', '.xls'))
+        
+        if is_image:
+            # Handle single image upload
+            print("Processing single image file...")
             content = await file.read()
-            f.write(content)
+            
+            # Convert to base64 data URL
+            image_base64 = base64.b64encode(content).decode('utf-8')
+            image_data_url = f"data:{content_type};base64,{image_base64}"
+            
+            # Create pseudo Excel data structure
+            image_data = [{
+                'row_number': 1,
+                'merchant_name': 'Single Image Upload',
+                'image_url': image_data_url,
+                'is_valid_url': False,
+                'is_base64': True,
+                'original_data': {
+                    'Merchant_Name': 'Single Image Upload',
+                    'Merchant_Image': image_data_url
+                }
+            }]
+            
+            excel_result = {
+                'merchant_column': 'Merchant_Name',
+                'image_column': 'Merchant_Image'
+            }
+            
+        elif is_excel:
+            # Handle Excel file (existing logic)
+            file_path = Path(UPLOAD_DIR) / file.filename
+            with open(file_path, "wb") as f:
+                content = await file.read()
+                f.write(content)
+            
+            # Module 1: Process Excel
+            print("Processing Excel file...")
+            processor = ExcelProcessor(str(file_path))
+            excel_result = processor.process()
+            
+            # Extract image URLs
+            image_data = excel_result['data']
+        else:
+            raise HTTPException(status_code=400, detail="Invalid file type. Please upload an Excel file or an image.")
         
-        # Module 1: Process Excel
-        print("Processing Excel file...")
-        processor = ExcelProcessor(str(file_path))
-        excel_result = processor.process()
-        
-        # Extract image URLs
-        image_data = excel_result['data']
-        image_urls = [item['image_url'] for item in image_data if item['is_valid_url']]
+        image_urls = [item['image_url'] for item in image_data if item.get('is_valid_url') or item.get('is_base64')]
         
         # Module 2: Validate Images
-        print(f"Validating {len(image_urls)} images...")
-        validator = ImageValidator()
+        print(f"Validating {len(image_urls)} images using {compliance_mode} compliance mode...")
+        validator = ImageValidator(compliance_mode=compliance_mode)
         
         validation_results = []
         for i, item in enumerate(image_data):
-            if item['is_valid_url']:
+            if item.get('is_base64'):
+                # Handle base64 image (from single image upload)
+                print(f"Validating image {i+1}/{len(image_urls)}: base64 image")
+                image_url = item['image_url']
+                # Extract base64 part
+                base64_data = image_url.split(',')[1]
+                image_bytes = base64.b64decode(base64_data)
+                result = validator.analyze_image(image_bytes)
+                validation_results.append(result)
+            elif item.get('is_valid_url'):
                 print(f"Validating image {i+1}/{len(image_urls)}: {item['image_url']}")
                 result = validator.validate_image_url(item['image_url'])
                 validation_results.append(result)
@@ -122,7 +173,8 @@ async def validate_images(file: UploadFile = File(...)):
                     'validated': False,
                     'status': 'REJECTED',
                     'reason': 'Invalid URL format',
-                    'confidence': 'HIGH'
+                    'confidence': 'HIGH',
+                    'confidence_score': 0.95
                 })
         
         # Module 3: Generate Results

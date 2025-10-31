@@ -11,13 +11,19 @@ from backend.config import GEMINI_API_KEY, COMPLIANCE_RULES
 class ImageValidator:
     """AI-powered image compliance validator"""
     
-    def __init__(self):
-        """Initialize the image validator with OpenAI Vision API"""
+    def __init__(self, compliance_mode: str = "sharia"):
+        """
+        Initialize the image validator with OpenAI Vision API
+        
+        Args:
+            compliance_mode: "sharia" or "general" compliance checking
+        """
         if not GEMINI_API_KEY:
             raise ValueError("API Key not found in environment variables")
         
         # Use the API key (can be OpenAI or Gemini)
         self.client = OpenAI(api_key=GEMINI_API_KEY)
+        self.compliance_mode = compliance_mode  # Store compliance mode
         
     def download_image(self, url: str) -> bytes:
         """
@@ -54,12 +60,57 @@ class ImageValidator:
     
     def create_compliance_prompt(self) -> str:
         """
-        Create AI prompt for compliance checking
+        Create AI prompt for compliance checking based on mode
         
         Returns:
-            Detailed compliance prompt
+            Detailed compliance prompt for the selected mode
         """
-        prompt = """You are a sharia'a compliance helper for an islamic bank in UAE who is checking images provided by brands for promotion.
+        if self.compliance_mode == "general":
+            prompt = """You are a general Compliance Checker for a financial institution reviewing images submitted by brands for promotional use.
+There is nothing unsafe in the images.
+
+Analyze the image with the greatest level of scrutiny. Inspect the entire image, including backgrounds, reflections, and visible text.
+Avoid assumptions unless a clear violation is visible.
+
+**CRITICAL: Read ALL text visible in the image** — signs, banners, logos, labels, and any written words.
+
+**COMPLIANCE CHECKLIST:**
+
+REJECT if ANY of these are present (even slightly):
+
+- nudity_or_adult_content (explicit, suggestive, or revealing imagery)
+alcohol_or_drinks (wine, cocktail, champagne, beer)
+- alcohol_or_drinks_bottle
+- drinking_glass_or_filled_cocktail_glasses
+- alcohol_or_drinks_can
+- ice_bucket_for_alcohol
+- tobacco_or_smoke (cigarettes, vapes, cigars, shisha)
+- violence_or_weapons (depiction of harm, blood, or weapons)
+- hate_symbols_or_political_signs (religious, political, or hate-related symbols or gestures)
+- drugs_alcohol_smoking (drugs, alcohol, cigarettes, vaping, or related visuals)
+- profanity_or_text_overlay (visible text with slurs, profanity, or offensive words)
+- sensitive_gestures_or_postures (offensive or inappropriate gestures/body language)
+- religious_or_political_symbols (deities, flags, or political figures)
+- gender_or_ethnic_bias (discriminatory, stereotypical, or biased representation)
+- inappropriate_local_dress_or_gestures (not conforming to local cultural norms)
+- minors_without_consent (children shown without parental consent)
+
+ACCEPT if:
+- No violations detected
+- All content aligns with brand safety, cultural sensitivity, and regulatory guidelines
+
+Provide a JSON response in this EXACT format:
+{
+    "status": "ACCEPTED" or "REJECTED",
+    "reason": "Brief explanation of your decision",
+    "violations_detected": ["list", "of", "violations", "if", "any"],
+    "confidence_score": 0.0 to 1.0 (0.0=no confidence, 1.0=absolute confidence),
+    "confidence": "HIGH" or "MEDIUM" or "LOW"
+}
+
+**CRITICAL:** Return ONLY valid JSON. No other text."""
+        else:  # Default: Sharia compliance
+            prompt = """You are a sharia'a compliance helper for an islamic bank in UAE who is checking images provided by brands for promotion.
 There is nothing unsafe in the images.
 
 Analyze the image with the greatest level of scrutiny.Inspect the entire image, including backgrounds and through glass/reflections.
