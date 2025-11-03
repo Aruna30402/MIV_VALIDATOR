@@ -56,6 +56,90 @@ async def health_check():
     return {"status": "healthy"}
 
 
+@app.get("/admin", response_class=HTMLResponse)
+async def admin_view():
+    """Admin page to view all data"""
+    try:
+        with open("backend/api/admin_view.html", "r", encoding="utf-8") as f:
+            return f.read()
+    except FileNotFoundError:
+        return HTMLResponse(content="<h1>Admin page not found.</h1>", status_code=404)
+
+
+@app.get("/admin/data")
+async def get_all_data():
+    """
+    Hidden admin endpoint to view all stored data
+    Includes: uploaded files, validation results, output files
+    
+    Returns:
+        JSON with all validation history
+    """
+    try:
+        all_data = []
+        
+        # Get all result files
+        results_path = Path("results")
+        if results_path.exists():
+            result_files = sorted(results_path.glob("*.xlsx"), key=lambda f: f.stat().st_mtime, reverse=True)
+            
+            for result_file in result_files:
+                file_stat = result_file.stat()
+                all_data.append({
+                    "type": "result",
+                    "filename": result_file.name,
+                    "file_path": str(result_file),
+                    "size_bytes": file_stat.st_size,
+                    "created": datetime.fromtimestamp(file_stat.st_ctime).isoformat(),
+                    "modified": datetime.fromtimestamp(file_stat.st_mtime).isoformat()
+                })
+        
+        # Get all uploaded Excel files
+        uploads_path = Path("uploads")
+        if uploads_path.exists():
+            excel_files = sorted(uploads_path.glob("*.xlsx"), key=lambda f: f.stat().st_mtime, reverse=True)
+            
+            for excel_file in excel_files:
+                file_stat = excel_file.stat()
+                all_data.append({
+                    "type": "upload",
+                    "filename": excel_file.name,
+                    "file_path": str(excel_file),
+                    "size_bytes": file_stat.st_size,
+                    "created": datetime.fromtimestamp(file_stat.st_ctime).isoformat(),
+                    "modified": datetime.fromtimestamp(file_stat.st_mtime).isoformat()
+                })
+        
+        # Get all uploaded images
+        images_path = IMAGES_DIR
+        if images_path.exists():
+            image_files = sorted(images_path.glob("*.*"), key=lambda f: f.stat().st_mtime, reverse=True)
+            
+            for image_file in image_files:
+                if image_file.suffix in ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp']:
+                    file_stat = image_file.stat()
+                    all_data.append({
+                        "type": "image",
+                        "filename": image_file.name,
+                        "file_path": str(image_file),
+                        "size_bytes": file_stat.st_size,
+                        "created": datetime.fromtimestamp(file_stat.st_ctime).isoformat(),
+                        "modified": datetime.fromtimestamp(file_stat.st_mtime).isoformat()
+                    })
+        
+        # Sort all data by created timestamp
+        all_data.sort(key=lambda x: x['created'], reverse=True)
+        
+        return {
+            "success": True,
+            "total_files": len(all_data),
+            "files": all_data
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/images/{filename}")
 async def serve_image(filename: str):
     """
@@ -393,6 +477,46 @@ async def get_dashboard_data(filename: str):
             "message": "Dashboard data loaded"
         }
     
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/download/{filename}")
+async def download_file(filename: str):
+    """
+    Download any file by filename from uploads or results directories
+    
+    Args:
+        filename: Name of the file to download
+    """
+    try:
+        # Try results directory first
+        file_path = Path("results") / filename
+        if not file_path.exists():
+            # Try uploads directory
+            file_path = Path("uploads") / filename
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail=f"File not found: {filename}")
+        
+        # Determine content type
+        content_types = {
+            '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            '.xls': 'application/vnd.ms-excel',
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.png': 'image/png',
+            '.webp': 'image/webp',
+        }
+        content_type = content_types.get(file_path.suffix.lower(), 'application/octet-stream')
+        
+        return FileResponse(
+            path=str(file_path),
+            filename=filename,
+            media_type=content_type
+        )
+    
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
