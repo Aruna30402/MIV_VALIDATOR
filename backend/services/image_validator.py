@@ -5,7 +5,7 @@ from typing import Dict, List
 from PIL import Image
 import io
 from openai import OpenAI
-from backend.config import GEMINI_API_KEY, COMPLIANCE_RULES
+from backend.config import OPENAI_API_KEY, COMPLIANCE_RULES
 
 
 class ImageValidator:
@@ -18,11 +18,11 @@ class ImageValidator:
         Args:
             compliance_mode: "sharia" or "general" compliance checking
         """
-        if not GEMINI_API_KEY:
+        if not OPENAI_API_KEY:
             raise ValueError("API Key not found in environment variables")
         
-        # Use the API key (can be OpenAI or Gemini)
-        self.client = OpenAI(api_key=GEMINI_API_KEY)
+        # Use OpenAI API
+        self.client = OpenAI(api_key=OPENAI_API_KEY)
         self.compliance_mode = compliance_mode  # Store compliance mode
         
     def download_image(self, url: str) -> bytes:
@@ -162,7 +162,7 @@ Provide a JSON response in this EXACT format:
     
     def analyze_image(self, image_bytes: bytes) -> Dict:
         """
-        Analyze image for compliance using Gemini AI
+        Analyze image for compliance using OpenAI Vision AI
         
         Args:
             image_bytes: Image data as bytes

@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # API Keys
-GEMINI_API_KEY = os.getenv("OPENAI_API_KEY", "")  # OpenAI API key
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")  # OpenAI API key
 
 # File Paths
 UPLOAD_DIR = "uploads"
@@ -16,7 +16,7 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(RESULTS_DIR, exist_ok=True)
 
 # AI Model Configuration
-MODEL_NAME = "gemini-1.5-flash"  # Updated model name
+MODEL_NAME = "gpt-4o-mini"  # OpenAI Vision model
 MAX_IMAGE_SIZE = 10 * 1024 * 1024  # 10MB
 SUPPORTED_IMAGE_FORMATS = ['.jpg', '.jpeg', '.png', '.webp']
 
