@@ -22,7 +22,12 @@ class ImageValidator:
             raise ValueError("API Key not found in environment variables")
         
         # Use OpenAI API
-        self.client = OpenAI(api_key=OPENAI_API_KEY)
+        self.client = OpenAI(
+            api_key=OPENAI_API_KEY,
+            # Explicitly disable proxies to avoid Railway environment conflicts
+            http_client=None,
+            timeout=60.0
+        )
         self.compliance_mode = compliance_mode  # Store compliance mode
         
     def download_image(self, url: str) -> bytes:
