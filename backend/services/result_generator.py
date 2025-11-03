@@ -3,6 +3,9 @@ import pandas as pd
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List
+import re
+from openpyxl import load_workbook
+from openpyxl.styles import Font
 from backend.config import RESULTS_DIR
 
 
@@ -38,7 +41,6 @@ class ResultGenerator:
             row['STATUS'] = validation.get('status', 'REVIEW_REQUIRED')
             row['REASON'] = validation.get('reason', 'No reason provided')
             row['CONFIDENCE_SCORE'] = validation.get('confidence_score', 0.70)
-            row['VALIDATED'] = validation.get('validated', False)
             
             result_data.append(row)
         
@@ -57,7 +59,46 @@ class ResultGenerator:
             # Add summary sheet
             self._create_summary_sheet(writer, validation_results)
         
+        # Add hyperlinks to HTTP URLs
+        self._add_hyperlinks_to_excel(filepath)
+        
         return str(filepath)
+    
+    def _add_hyperlinks_to_excel(self, filepath: Path):
+        """
+        Add clickable hyperlinks to HTTP URLs in Excel file
+        
+        Args:
+            filepath: Path to Excel file
+        """
+        try:
+            workbook = load_workbook(filepath)
+            worksheet = workbook['Validation Results']
+            
+            # Pattern to match HTTP/HTTPS URLs
+            url_pattern = re.compile(r'https?://[^\s<>"{}|\\^`\[\]]+', re.IGNORECASE)
+            
+            # Iterate through all cells in the worksheet
+            for row in worksheet.iter_rows():
+                for cell in row:
+                    if cell.value and isinstance(cell.value, str):
+                        # Check if cell contains HTTP URL
+                        if url_pattern.search(cell.value):
+                            # If cell contains only the URL, make it a hyperlink
+                            url_match = url_pattern.match(cell.value.strip())
+                            if url_match:
+                                url = url_match.group()
+                                # Set hyperlink
+                                cell.hyperlink = url
+                                # Style as hyperlink (blue, underlined)
+                                cell.font = Font(color="0563C1", underline="single")
+                                # Keep the URL as display text
+                                cell.value = url
+            
+            workbook.save(filepath)
+        except Exception as e:
+            print(f"Warning: Could not add hyperlinks to Excel: {str(e)}")
+            # Continue even if hyperlink addition fails
     
     def _create_summary_sheet(self, writer, validation_results: List[Dict]):
         """

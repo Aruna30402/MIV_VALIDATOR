@@ -149,13 +149,6 @@
   #generalComplianceBtn:hover:not(:disabled) {
     background: #059669;
   }
-  #imageQualityBtn {
-    background: #94A3B8; /* grey */
-    color: #ffffff;
-  }
-  #imageQualityBtn:hover {
-    background: #64748B;
-  }
 
   .progress-section {
     display: none;
@@ -386,7 +379,6 @@
       <div style="margin-top: 25px; display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
         <button id="validateBtn" class="btn" disabled>Sharia Compliance</button>
         <button id="generalComplianceBtn" class="btn" type="button">General Compliance</button>
-        <button id="imageQualityBtn" class="btn" type="button">Image Quality</button>
       </div>
     </div>
 
@@ -451,7 +443,6 @@
   const selectedFileDiv = document.getElementById('selectedFile');
   const validateBtn = document.getElementById('validateBtn');
   const generalComplianceBtn = document.getElementById('generalComplianceBtn');
-  const imageQualityBtn = document.getElementById('imageQualityBtn');
   const progressSection = document.getElementById('progressSection');
   const resultsSection = document.getElementById('resultsSection');
   const errorMessage = document.getElementById('errorMessage');
@@ -485,11 +476,6 @@
     complianceMode = 'general';
     updateComplianceButtons();
     startValidation();
-  });
-
-  imageQualityBtn.addEventListener('click', () => {
-    // TODO: Implement image quality checking
-    alert('Image Quality feature coming soon!');
   });
 
   function updateComplianceButtons() {

@@ -1,12 +1,14 @@
 """FastAPI Application - Merchant Image Validator Agent"""
-from fastapi import FastAPI, UploadFile, File, HTTPException, Form
+from fastapi import FastAPI, UploadFile, File, HTTPException, Form, Request
 from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import os
 import base64
+import uuid
 from pathlib import Path
 from typing import List
+from datetime import datetime
 
 from backend.services.excel_processor import ExcelProcessor
 from backend.services.image_validator import ImageValidator
@@ -14,6 +16,10 @@ from backend.services.result_generator import ResultGenerator
 from backend.config import UPLOAD_DIR
 
 app = FastAPI(title="Merchant Image Validator Agent", version="1.0.0")
+
+# Create images directory for uploaded single images
+IMAGES_DIR = Path("uploads/images")
+IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 
 # Configure CORS
 app.add_middleware(
@@ -50,6 +56,40 @@ async def health_check():
     return {"status": "healthy"}
 
 
+@app.get("/api/images/{filename}")
+async def serve_image(filename: str):
+    """
+    Serve uploaded images
+    
+    Args:
+        filename: Image filename
+    
+    Returns:
+        Image file
+    """
+    image_path = IMAGES_DIR / filename
+    if not image_path.exists():
+        raise HTTPException(status_code=404, detail="Image not found")
+    
+    # Determine media type based on file extension
+    extension = image_path.suffix.lower()
+    media_types = {
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.png': 'image/png',
+        '.webp': 'image/webp',
+        '.gif': 'image/gif',
+        '.bmp': 'image/bmp'
+    }
+    media_type = media_types.get(extension, 'image/jpeg')
+    
+    return FileResponse(
+        path=str(image_path),
+        media_type=media_type,
+        filename=filename
+    )
+
+
 @app.post("/api/upload")
 async def upload_excel(file: UploadFile = File(...)):
     """
@@ -80,7 +120,7 @@ async def upload_excel(file: UploadFile = File(...)):
 
 
 @app.post("/api/validate")
-async def validate_images(file: UploadFile = File(...), compliance_mode: str = Form("sharia")):
+async def validate_images(request: Request, file: UploadFile = File(...), compliance_mode: str = Form("sharia")):
     """
     Complete validation pipeline:
     - Module 1: Process Excel
@@ -106,20 +146,37 @@ async def validate_images(file: UploadFile = File(...), compliance_mode: str = F
             print("Processing single image file...")
             content = await file.read()
             
-            # Convert to base64 data URL
+            # Save image to file system with unique filename
+            file_extension = Path(file.filename).suffix if file.filename else '.jpg'
+            if not file_extension or file_extension not in ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp']:
+                file_extension = '.jpg'
+            
+            unique_filename = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}{file_extension}"
+            image_file_path = IMAGES_DIR / unique_filename
+            
+            # Save image file
+            with open(image_file_path, "wb") as f:
+                f.write(content)
+            
+            # Generate HTTP URL for the image
+            base_url = str(request.base_url).rstrip('/')
+            image_http_url = f"{base_url}/api/images/{unique_filename}"
+            
+            # Also keep base64 for validation processing
             image_base64 = base64.b64encode(content).decode('utf-8')
             image_data_url = f"data:{content_type};base64,{image_base64}"
             
-            # Create pseudo Excel data structure
+            # Create pseudo Excel data structure with HTTP URL for output
             image_data = [{
                 'row_number': 1,
                 'merchant_name': 'Single Image Upload',
-                'image_url': image_data_url,
-                'is_valid_url': False,
+                'image_url': image_data_url,  # Keep base64 for processing
+                'image_http_url': image_http_url,  # HTTP URL for output file
+                'is_valid_url': True,
                 'is_base64': True,
                 'original_data': {
                     'Merchant_Name': 'Single Image Upload',
-                    'Merchant_Image': image_data_url
+                    'Merchant_Image': image_http_url  # Use HTTP URL in output
                 }
             }]
             
