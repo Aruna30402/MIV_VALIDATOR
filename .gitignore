@@ -56,7 +56,7 @@ logs/
 .ipynb_checkpoints
 
 # pyenv
-.python-version
+# .python-version  # Keep for Render deployment
 
 # Celery
 celerybeat-schedule

@@ -9,3 +9,5 @@ services:
       - key: OPENAI_API_KEY
         sync: false
         fromSecret: true
+      - key: PYTHON_VERSION
+        value: 3.12.7
